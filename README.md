@@ -2,17 +2,11 @@
 
 ![CI](https://github.com/skylerblue333/TS-Payment-Gateway/workflows/CI/badge.svg)
 
-Production-ready TypeScript Express API for gateway operations.
-
-## Features
-- Fully typed Express handlers
-- Supertest integration testing
-- Docker containerization
-- GitHub Actions CI Pipeline
+Payment processing and reconciliation gateway built with TypeScript, Express, and Zod.
 
 ## Quick Start
 ```bash
-npm ci
+npm install
 npm test
-npm run build && npm start
+npm start
 ```

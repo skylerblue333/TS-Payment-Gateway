@@ -1,26 +1,35 @@
 import express from 'express';
-import cors from 'cors';
+import { z } from 'zod';
 
-const app = express();
-app.use(cors());
+export const app = express();
 app.use(express.json());
 
 app.get('/health', (req, res) => {
-    res.json({ status: 'healthy', domain: 'gateway', uptime: process.uptime() });
+  res.json({ status: 'healthy', service: 'TS-Payment-Gateway' });
 });
 
-app.post('/api/v1/process', (req, res) => {
-    const { payload } = req.body;
-    if (!payload) return res.status(400).json({ error: 'Missing payload' });
-    res.status(201).json({ 
-        success: true, 
-        processed: payload, 
-        timestamp: new Date().toISOString() 
-    });
+const ChargeSchema = z.object({
+  amount: z.number().positive(),
+  currency: z.string().length(3),
+  source: z.string()
 });
+
+app.post('/api/v1/charge', (req, res) => {
+  try {
+    const data = ChargeSchema.parse(req.body);
+    // Simulate processing
+    const success = data.amount < 10000;
+    res.json({
+      transaction_id: `tx_${Date.now()}`,
+      status: success ? 'succeeded' : 'failed',
+      amount: data.amount
+    });
+  } catch (e) {
+    res.status(400).json({ error: 'Invalid charge payload' });
+  }
+});
+
 
 if (require.main === module) {
-    app.listen(3000, () => console.log('TS-Payment-Gateway API running on port 3000'));
+  app.listen(3000, () => console.log('Server running on port 3000'));
 }
-
-export default app;
