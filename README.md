@@ -1,21 +1,14 @@
 # TS-Payment-Gateway
 
-## Overview
-Stripe integration wrapper for e-commerce.
+Stripe-style payment processing API with charge, decline, and error handling.
 
-Developed as part of my portfolio showcasing 5 years of full-stack engineering experience. This project demonstrates strict TypeScript configuration, clean component architecture, and modern Node.js practices.
-
-## Quick Start (1-Click Build)
+## Quick Start
 
 ```bash
-git clone https://github.com/skylerblue333/TS-Payment-Gateway.git
-cd TS-Payment-Gateway
-npm install
-npm run build
-npm start
+npm ci && npm test
 ```
 
-## Features
-- Strict Type Safety
-- Clean Architecture
-- Production-ready configuration
+## API
+
+`POST /charge` — `{ amount, currency, cardToken }`  
+Returns `{ id, status, amount, currency, message }`
