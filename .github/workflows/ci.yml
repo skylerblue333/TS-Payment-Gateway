@@ -1,12 +1,44 @@
-name: CI
-on: [push, pull_request]
+name: payment-sandbox-ci
+
+on:
+  push:
+    branches: [main, "product/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
 jobs:
-  test:
+  verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '18'
-      - run: npm ci
-      - run: npm test
+          node-version: '22'
+      - name: Install
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: TypeScript build
+        run: npm run build
+      - name: Tests
+        run: npm test -- --runInBand
+      - name: Runtime dependency audit
+        run: npm audit --omit=dev --audit-level=high
+      - name: Build image
+        run: docker build -t sky-payment-sandbox:ci .
+      - name: Verify non-root image
+        run: |
+          user="$(docker image inspect sky-payment-sandbox:ci --format '{{.Config.User}}')"
+          test -n "$user"
+          test "$user" != "0"
+          test "$user" != "root"
+      - name: Smoke test health
+        run: |
+          docker run -d --rm --name sky-payment-ci -p 13000:3000 sky-payment-sandbox:ci
+          trap 'docker stop sky-payment-ci >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:13000/healthz >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          docker logs sky-payment-ci
+          exit 1
