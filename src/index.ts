@@ -1,49 +1,83 @@
+import { randomUUID } from 'crypto';
 import express from 'express';
 import { z } from 'zod';
 
 export const app = express();
-app.use(express.json());
+app.disable('x-powered-by');
+app.use(express.json({ limit: '16kb' }));
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'healthy', service: 'TS-Payment-Gateway' });
+const authorizations = new Map<string, SandboxAuthorization>();
+
+app.get('/healthz', (_req, res) => {
+  res.json({ status: 'healthy', service: 'sky-payment-sandbox' });
+});
+app.get('/readyz', (_req, res) => {
+  res.json({ status: 'ready', mode: 'sandbox', retainedAuthorizations: authorizations.size });
 });
 
-const ChargeSchema = z.object({
-  amount: z.number().positive(),
+const AuthorizationSchema = z.object({
+  amountMinor: z.number().int().positive().max(100_000_000),
   currency: z.string().regex(/^[A-Z]{3}$/),
-  source: z.string().min(1),
-});
+  reference: z.string().trim().min(1).max(120),
+  idempotencyKey: z.string().trim().min(8).max(128),
+}).strict();
 
-export interface PaymentResult {
-  transaction_id: string;
-  status: 'succeeded' | 'failed';
-  amount: number;
+export interface SandboxAuthorization {
+  authorizationId: string;
+  status: 'sandbox_authorized';
+  mode: 'sandbox';
+  amountMinor: number;
   currency: string;
+  reference: string;
 }
 
 /**
- * Local payment adapter boundary.
- * This intentionally does not move money or impersonate a live processor.
- * Replace this adapter with a verified provider integration before production.
+ * Creates an in-memory sandbox authorization record.
+ * No processor is contacted and no money is moved.
  */
-export function authorizeCharge(input: unknown): PaymentResult {
-  const data = ChargeSchema.parse(input);
-  return {
-    transaction_id: `tx_${Date.now()}`,
-    status: data.amount < 10000 ? 'succeeded' : 'failed',
-    amount: data.amount,
+export function authorizeSandbox(input: unknown): SandboxAuthorization {
+  const data = AuthorizationSchema.parse(input);
+  const existing = authorizations.get(data.idempotencyKey);
+  if (existing) {
+    if (
+      existing.amountMinor !== data.amountMinor ||
+      existing.currency !== data.currency ||
+      existing.reference !== data.reference
+    ) {
+      throw new Error('idempotency_conflict');
+    }
+    return existing;
+  }
+
+  const authorization: SandboxAuthorization = {
+    authorizationId: `sandbox_${randomUUID()}`,
+    status: 'sandbox_authorized',
+    mode: 'sandbox',
+    amountMinor: data.amountMinor,
     currency: data.currency,
+    reference: data.reference,
   };
+  authorizations.set(data.idempotencyKey, authorization);
+  return authorization;
 }
 
-app.post('/api/v1/charge', (req, res) => {
+export function resetSandbox(): void {
+  authorizations.clear();
+}
+
+app.post('/api/v1/sandbox/authorizations', (req, res) => {
   try {
-    res.json(authorizeCharge(req.body));
-  } catch {
-    res.status(400).json({ error: 'Invalid charge payload' });
+    res.status(201).json(authorizeSandbox(req.body));
+  } catch (error) {
+    if (error instanceof Error && error.message === 'idempotency_conflict') {
+      return res.status(409).json({ error: 'idempotency key reused with different request' });
+    }
+    return res.status(400).json({ error: 'invalid authorization payload' });
   }
 });
 
 if (require.main === module) {
-  app.listen(3000, () => console.log('TS-Payment-Gateway listening on port 3000'));
+  const port = Number(process.env.PORT ?? '3000');
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be 1-65535');
+  app.listen(port, () => console.log(`sky-payment-sandbox listening on port ${port}`));
 }
