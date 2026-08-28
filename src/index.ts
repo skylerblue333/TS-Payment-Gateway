@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import express from 'express';
 import { z } from 'zod';
 
-export * from './billing.js';
+export * from './billing';
 
 export const app = express();
 app.disable('x-powered-by');
