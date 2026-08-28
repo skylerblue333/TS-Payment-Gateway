@@ -24,15 +24,21 @@ export interface BillingStatement {
   status: 'draft' | 'finalized' | 'void';
 }
 
+const MAX_BILLING_AMOUNT_MINOR = 9_999_999_999_999;
+
 function checkedAdd(left: number, right: number): number {
   const value = left + right;
-  if (!Number.isSafeInteger(value)) throw new Error('amount_overflow');
+  if (!Number.isSafeInteger(value) || value > MAX_BILLING_AMOUNT_MINOR) {
+    throw new Error('amount_overflow');
+  }
   return value;
 }
 
 function checkedMultiply(left: number, right: number): number {
   const value = left * right;
-  if (!Number.isSafeInteger(value)) throw new Error('amount_overflow');
+  if (!Number.isSafeInteger(value) || value > MAX_BILLING_AMOUNT_MINOR) {
+    throw new Error('amount_overflow');
+  }
   return value;
 }
 
