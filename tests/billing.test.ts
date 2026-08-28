@@ -39,11 +39,13 @@ describe('SkyBilling', () => {
     expect(() => createBillingStatement({ ...input, lines: [{ description: 'x', quantity: 0, unitAmountMinor: 1 }] })).toThrow();
   });
 
-  it('rejects unsafe monetary overflow', () => {
-    expect(() => createBillingStatement({
-      ...input,
-      lines: [{ description: 'overflow', quantity: 1_000_000, unitAmountMinor: 100_000_000 }],
-    })).toThrow('amount_overflow');
+  it('rejects unsafe monetary overflow across multiple valid lines', () => {
+    const lines = Array.from({ length: 91 }, (_, index) => ({
+      description: `overflow-${index}`,
+      quantity: 1_000_000,
+      unitAmountMinor: 100_000_000,
+    }));
+    expect(() => createBillingStatement({ ...input, lines })).toThrow('amount_overflow');
   });
 
   it('publishes a no-side-effect integration contract', () => {
